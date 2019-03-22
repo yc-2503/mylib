@@ -163,7 +163,7 @@ void *task_write_line(void *arg)
         sprintf(str, "test %d\n", n);
         WriteLine("test %d %x", n, n);
         n++;
-        usleep(15000);
+        usleep(1500);
     }
 }
 
@@ -174,16 +174,27 @@ void *task_write_long_line(void *arg)
     int n = 0;
     while (1)
     {
+        WriteLine( "test %d %xabcdfasdfa fewafwfe afefawf awefijoij fawefweai afwefawefo fawefjiojpj awefioawepjijf \
+        fjweaopijfoiawj afweifjoiew fawoefjoiewaj awefijoi  feawiiieiiieieiieieieiei afweiiiifjeiawjfiojewoaijf aweifjoiewja aweoijfoiaiowejf\
+        fewoaijfpioewajfioewja fweaf ", n, n);
+        n++;
+        usleep(2000);
+    }
+}
+void *task_write_long_long_line(void *arg)
+{
+    int n = 0;
+    while (1)
+    {
         WriteLine( "test %s %s %d %xabcdfasdfa fewafwfe afefawf awefijoij fawefweai afwefawefo fawefjiojpj awefioawepjijf \
         faweoifjewopai faweoijfoepw fweaofjewopiaj fawefoijewp faweofjpoieaw afwefjawpi aweifjopij awefijopiawje awpeoifjoiawe aoweijfoi \
         fjweaopijfoiawj afweifjoiew fawoefjoiewaj awefijoi  feawiiieiiieieiieieieiei afweiiiifjeiawjfiojewoaijf aweifjoiewja aweoijfoiaiowejf\
         fewoaijfpioewajfioewja fweaf ",
                   __DATE__, __TIME__, n, n);
         n++;
-        usleep(10000);
+        usleep(3000);
     }
 }
-
 void *print(void *pi)
 {
     struct timeval us;
@@ -195,46 +206,49 @@ void *print(void *pi)
 void *task_time_wait(void *arg)
 {
     int n = 0;
-    Timer_Wait_t t;
+    Timer_t t;
     int i = 6;
+    Creat_Timer(&t);
     while (1)
     {
         print(&i);
 
-        Make_Timer(&t, 10, print, (void *)&i);
+        Start_Timer(t, 10, print, (void *)&i);
         usleep(100000);
     }
 }
 int main(int argc, char const *argv[])
 {
 
+
+    printf("size of Memory_Map_Table %ld \n", sizeof(Free_Page_Info));
     init_queue(&qd, testQueen, sizeof(Test), 10);
     InitConsole();
-    printf("size of Memory_Map_Table %ld \n", sizeof(Memory_Map_Table));
+
     pthread_t thread_push, thread_wait_push, thread_pop, thread_wait_pop, thread_append, thread_extract, thread_write, thread_long_write, thread_llong_write;
-    // pthread_create(&thread_push, NULL, tast_push_queue, NULL);
-    // pthread_create(&thread_wait_push, NULL, tast_wait_push_queen, NULL);
-    // pthread_create(&thread_pop, NULL, tast_pop_queen, NULL);
-    // pthread_create(&thread_wait_pop, NULL, tast_wait_pop_queen, NULL);
-    // pthread_create(&thread_append, NULL, tast_append_queen, NULL);
-    // pthread_create(&thread_extract, NULL, tast_extract_queue, NULL);
+    pthread_create(&thread_push, NULL, tast_push_queue, NULL);
+    pthread_create(&thread_wait_push, NULL, tast_wait_push_queen, NULL);
+    pthread_create(&thread_pop, NULL, tast_pop_queen, NULL);
+    pthread_create(&thread_wait_pop, NULL, tast_wait_pop_queen, NULL);
+    pthread_create(&thread_append, NULL, tast_append_queen, NULL);
+    pthread_create(&thread_extract, NULL, tast_extract_queue, NULL);
     // pthread_t thread_mem_test1,thread_mem_test2,thread_mem_test3;
     //  mp = memory_pool_init(17, 800);
 
     // pthread_create(&thread_mem_test1, NULL, tast_mem_pool_test1, NULL);
     // pthread_create(&thread_mem_test2, NULL, tast_mem_pool_test2, NULL);
     // pthread_create(&thread_mem_test3, NULL, tast_mem_pool_test1, NULL);
-   pthread_create(&thread_write, NULL, task_write_line, NULL);
-   pthread_create(&thread_long_write, NULL, task_write_long_line, NULL);
-   pthread_create(&thread_llong_write, NULL, task_write_long_line, NULL);
+//    pthread_create(&thread_write, NULL, task_write_line, NULL);
+//    pthread_create(&thread_long_write, NULL, task_write_long_line, NULL);
+//    pthread_create(&thread_llong_write, NULL, task_write_long_long_line, NULL);
     //pthread_create(&thread_out, NULL, task_out_line, NULL);
     //pthread_create(&thread_timer, NULL, task_time_wait, NULL);
 
 
     
     int j = 10;
-    Timer_Wait_t t;
-    for (int i = 0; i < 200; i++)
+   // Timer_Wait_t t;
+    for (int i = 0; i < 20; i++)
     {
         // void *mem1 = Memory_malloc(mp, 2 * 2);
         // void *mem2 = Memory_malloc(mp, 10 * i);

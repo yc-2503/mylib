@@ -28,7 +28,7 @@
  *          elementcnt 缓存能够存储的最大元素数
  * @return 正常 0；异常 非正整数
  */
-int8_t init_queue(QDescriptor *qd, void *addr, size_t elementsize, uint32_t elementcnt)
+int32_t init_queue(QDescriptor *qd, void *addr, size_t elementsize, uint32_t elementcnt)
 {
     qd->_addr = addr;
     qd->_element_size = elementsize;
@@ -56,7 +56,7 @@ int8_t init_queue(QDescriptor *qd, void *addr, size_t elementsize, uint32_t elem
  *          src 待入队元素的首地址
  * @return 正常 0；异常 非正整数
  */
-int8_t wait_push_queue(QDescriptor *qd, void *src)
+int32_t wait_push_queue(QDescriptor *qd, void *src)
 {
     if (pthread_mutex_lock(&qd->_q_cond_lock))
         return -1;
@@ -92,7 +92,7 @@ int8_t wait_push_queue(QDescriptor *qd, void *src)
  *          tar 待入队元素的首地址
  * @return 正常 0；异常 非正整数
  */
-int8_t push_queue(QDescriptor *qd, void *src)
+int32_t push_queue(QDescriptor *qd, void *src)
 {
     if (pthread_mutex_lock(&qd->_q_cond_lock))
         return -1;
@@ -135,19 +135,69 @@ uint32_t append_queue(QDescriptor *qd, void *subaddr, uint32_t cnt)
         return 0;
     }
     uint32_t writecnt = 0;
-    while (writecnt < cnt && qd->freeCnt > 0)
+    uint32_t can_copy = qd->_element_count - qd->_write_pos;
+    if (qd->freeCnt >= cnt)
     {
-        memcpy(qd->_addr + (qd->_write_pos * qd->_element_size), subaddr + (writecnt * qd->_element_size), qd->_element_size);
-        qd->_write_pos++;
-
-        if (qd->_write_pos == qd->_element_count)
+        if (can_copy >= cnt)
         {
-            qd->_write_pos = 0;
-            qd->_over_write_flag = 1;
+            memcpy(qd->_addr + (qd->_write_pos * qd->_element_size), subaddr, cnt * qd->_element_size);
+            qd->_write_pos += cnt;
+
+            if (qd->_write_pos == qd->_element_count)
+            {
+                qd->_write_pos = 0;
+                qd->_over_write_flag = 1;
+            }
         }
-        qd->freeCnt--;
-        writecnt++;
+        else
+        {
+            memcpy(qd->_addr + (qd->_write_pos * qd->_element_size), subaddr, can_copy * qd->_element_size);
+            memcpy(qd->_addr, subaddr + can_copy * qd->_element_size, (cnt - can_copy) * qd->_element_size);
+            qd->_write_pos = cnt - can_copy;
+            qd->_over_write_flag = 1;
+            /* code */
+        }
+        qd->freeCnt -= cnt;
+        writecnt = cnt;
     }
+    else
+    {
+        if (can_copy >= qd->freeCnt)
+        {
+            memcpy(qd->_addr + (qd->_write_pos * qd->_element_size), subaddr, qd->freeCnt * qd->_element_size);
+            qd->_write_pos += qd->freeCnt;
+
+            if (qd->_write_pos == qd->_element_count)
+            {
+                qd->_write_pos = 0;
+                qd->_over_write_flag = 1;
+            }
+        }
+        else
+        {
+            memcpy(qd->_addr + (qd->_write_pos * qd->_element_size), subaddr, can_copy * qd->_element_size);
+            memcpy(qd->_addr, subaddr + can_copy * qd->_element_size, (qd->freeCnt - can_copy) * qd->_element_size);
+            qd->_write_pos = qd->freeCnt - can_copy;
+            qd->_over_write_flag = 1;
+            /* code */
+        }
+        qd->freeCnt = 0;
+        writecnt = qd->freeCnt;
+    }
+
+    // while (writecnt < cnt && qd->freeCnt > 0)
+    // {
+    //     memcpy(qd->_addr + (qd->_write_pos * qd->_element_size), subaddr + (writecnt * qd->_element_size), qd->_element_size);
+    //     qd->_write_pos++;
+
+    //     if (qd->_write_pos == qd->_element_count)
+    //     {
+    //         qd->_write_pos = 0;
+    //         qd->_over_write_flag = 1;
+    //     }
+    //     qd->freeCnt--;
+    //     writecnt++;
+    // }
     pthread_cond_signal(&qd->_q_pop_cond);
     pthread_mutex_unlock(&qd->_q_cond_lock);
     if (qd->psHandle != NULL)
@@ -162,7 +212,7 @@ uint32_t append_queue(QDescriptor *qd, void *subaddr, uint32_t cnt)
  *          dst 存储出队后元素内存的首地址
  * @return 正常 0；异常 非正整数
  */
-int8_t pop_queue(QDescriptor *qd, void *dst)
+int32_t pop_queue(QDescriptor *qd, void *dst)
 {
     if (pthread_mutex_lock(&qd->_q_cond_lock))
         return -1;
@@ -194,7 +244,7 @@ int8_t pop_queue(QDescriptor *qd, void *dst)
  *          dst 存储出队后元素内存的首地址
  * @return 正常 0；异常 非正整数
  */
-int8_t wait_pop_queue(QDescriptor *qd, void *dst)
+int32_t wait_pop_queue(QDescriptor *qd, void *dst)
 {
     if (pthread_mutex_lock(&qd->_q_cond_lock))
         return -1;
@@ -239,20 +289,71 @@ uint32_t extract_queue(QDescriptor *qd, void *subaddr, uint32_t cnt)
         pthread_mutex_unlock(&qd->_q_cond_lock);
         return 0;
     }
-    uint32_t readcnt = 0;
-    while (readcnt < cnt && qd->freeCnt < qd->_element_count) //   if (cnt < qd->freeCnt)
-    {
+    uint32_t avaliable = qd->_element_count - qd->freeCnt;
+    uint32_t can_copy = qd->_element_count - qd->_read_pos;
 
-        memcpy(subaddr + (readcnt * qd->_element_size), qd->_addr + (qd->_read_pos * qd->_element_size), qd->_element_size);
-        qd->_read_pos++;
-        if (qd->_read_pos == qd->_element_count)
+    uint32_t readcnt = 0;
+    if (avaliable >= cnt)
+    {
+        //uint32_t can_copy = qd->_element_count - qd->read_pos;
+        if (can_copy >= cnt)
         {
-            qd->_read_pos = 0;
+            memcpy(subaddr, qd->_addr + (qd->_read_pos * qd->_element_size), cnt * qd->_element_size);
+            qd->_read_pos += cnt;
+            if (qd->_read_pos >= qd->_element_count)
+            {
+                qd->_read_pos = qd->_read_pos - qd->_element_count;
+                qd->_over_write_flag = 0;
+            }
+        }
+        else
+        {
+            memcpy(subaddr, qd->_addr + (qd->_read_pos * qd->_element_size), can_copy * qd->_element_size);
+
+            memcpy(subaddr + can_copy * qd->_element_size, qd->_addr, (cnt - can_copy) * qd->_element_size);
+            qd->_read_pos = cnt - can_copy;
             qd->_over_write_flag = 0;
         }
-        qd->freeCnt++;
-        readcnt++;
+        qd->freeCnt += cnt;
+        readcnt = cnt;
     }
+    else
+    {
+        if (can_copy >= avaliable)
+        {
+            memcpy(subaddr, qd->_addr + (qd->_read_pos * qd->_element_size), avaliable * qd->_element_size);
+            qd->_read_pos += avaliable;
+            if (qd->_read_pos >= qd->_element_count)
+            {
+                qd->_read_pos = qd->_read_pos - qd->_element_count;
+                qd->_over_write_flag = 0;
+            }
+        }
+        else
+        {
+            memcpy(subaddr, qd->_addr + (qd->_read_pos * qd->_element_size), can_copy * qd->_element_size);
+
+            memcpy(subaddr + can_copy * qd->_element_size, qd->_addr, (avaliable - can_copy) * qd->_element_size);
+            qd->_read_pos = avaliable - can_copy;
+            qd->_over_write_flag = 0;
+        }
+        qd->freeCnt = qd->_element_count;
+        readcnt = avaliable;
+    }
+
+    // while (readcnt < cnt && qd->freeCnt < qd->_element_count) //   if (cnt < qd->freeCnt)
+    // {
+
+    //     memcpy(subaddr + (readcnt * qd->_element_size), qd->_addr + (qd->_read_pos * qd->_element_size), qd->_element_size);
+    //     qd->_read_pos++;
+    //     if (qd->_read_pos == qd->_element_count)
+    //     {
+    //         qd->_read_pos = 0;
+    //         qd->_over_write_flag = 0;
+    //     }
+    //     qd->freeCnt++;
+    //     readcnt++;
+    // }
     pthread_cond_signal(&qd->_q_push_cond);
     pthread_mutex_unlock(&qd->_q_cond_lock);
 
@@ -264,9 +365,8 @@ uint32_t extract_queue(QDescriptor *qd, void *subaddr, uint32_t cnt)
 }
 uint32_t get_Queue_Used_Cnt(QDescriptor *qd)
 {
-    if (pthread_mutex_lock(&qd->_q_cond_lock))
-        return 0;
-    uint32_t cnt= qd->_element_count-qd->freeCnt;
+    pthread_mutex_lock(&qd->_q_cond_lock);
+    uint32_t cnt = qd->_element_count - qd->freeCnt;
     pthread_mutex_unlock(&qd->_q_cond_lock);
     return cnt;
 }

@@ -93,10 +93,10 @@ void *_outLine(void *arg)
 
     while (1)
     {
-            uint32_t cnt = get_Queue_Used_Cnt(&cqd);
-    uint32_t i = 0;
-    Console console[cnt];
-    extract_queue(&cqd, &console, cnt);
+        uint32_t cnt = get_Queue_Used_Cnt(&cqd);
+        uint32_t i = 0;
+        Console console[cnt];
+        extract_queue(&cqd, &console, cnt);
         while (cnt > 0)
         {
             uint16_t len = 0;
@@ -121,11 +121,11 @@ void *_outLine(void *arg)
             //  printf("write len is %d\n", len);
             write(STDOUT_FILENO, buff, len);
         }
-        usleep(50000);
+        usleep(3000);
     }
 
     return NULL;
-    // 
+    //
 }
 void _console_out()
 {
